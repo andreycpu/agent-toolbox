@@ -102,3 +102,49 @@ class PerformanceMonitor:
             # Keep only last 1000 measurements
             if len(self.metrics[metric_name]) > 1000:
                 self.metrics[metric_name] = self.metrics[metric_name][-1000:]
+                
+    def increment_counter(self, counter_name: str, value: int = 1) -> None:
+        """Increment a counter."""
+        with self.lock:
+            self.counters[counter_name] = self.counters.get(counter_name, 0) + value
+            
+    def get_timing_stats(self, metric_name: str) -> Optional[Dict[str, float]]:
+        """Get timing statistics for a metric."""
+        with self.lock:
+            if metric_name not in self.metrics:
+                return None
+                
+            timings = self.metrics[metric_name]
+            if not timings:
+                return None
+                
+            import statistics
+            return {
+                "count": len(timings),
+                "min": min(timings),
+                "max": max(timings),
+                "mean": statistics.mean(timings),
+                "median": statistics.median(timings),
+                "std_dev": statistics.stdev(timings) if len(timings) > 1 else 0.0
+            }
+            
+    def get_all_stats(self) -> Dict[str, Any]:
+        """Get all performance statistics."""
+        with self.lock:
+            stats = {
+                "timings": {},
+                "counters": self.counters.copy()
+            }
+            
+            for metric_name in self.metrics.keys():
+                timing_stats = self.get_timing_stats(metric_name)
+                if timing_stats:
+                    stats["timings"][metric_name] = timing_stats
+                    
+            return stats
+            
+    def reset_metrics(self) -> None:
+        """Reset all metrics."""
+        with self.lock:
+            self.metrics.clear()
+            self.counters.clear()
