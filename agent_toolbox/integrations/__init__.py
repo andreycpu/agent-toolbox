@@ -5,6 +5,7 @@ from .github_client import GitHubClient
 from .email_client import EmailClient
 from .database_client import DatabaseClient
 from .webhook_client import WebhookClient
+from .http_server import SimpleHTTPServer
 
 __all__ = [
     "SlackClient",
@@ -12,4 +13,5 @@ __all__ = [
     "EmailClient",
     "DatabaseClient",
     "WebhookClient",
+    "SimpleHTTPServer",
 ]
