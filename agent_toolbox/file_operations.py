@@ -4,16 +4,67 @@ import os
 import shutil
 import json
 import yaml
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any
+
+
+logger = logging.getLogger(__name__)
+
+
+class FileOperationError(Exception):
+    """Base exception for file operation errors."""
+    pass
+
+
+class FileNotFoundError(FileOperationError):
+    """Raised when a file is not found."""
+    pass
+
+
+class DirectoryNotFoundError(FileOperationError):
+    """Raised when a directory is not found."""
+    pass
+
+
+class PermissionError(FileOperationError):
+    """Raised when file operation is not permitted."""
+    pass
 
 
 class FileManager:
     """Comprehensive file management utilities for agents."""
     
-    def __init__(self, base_path: Optional[str] = None):
-        """Initialize FileManager with optional base path."""
-        self.base_path = Path(base_path) if base_path else Path.cwd()
+    def __init__(self, base_path: Optional[Union[str, Path]] = None) -> None:
+        """Initialize FileManager with optional base path.
+        
+        Args:
+            base_path: Base directory path for relative operations
+            
+        Raises:
+            DirectoryNotFoundError: If base_path doesn't exist
+            PermissionError: If base_path is not accessible
+        """
+        if base_path is None:
+            self.base_path = Path.cwd()
+        else:
+            self.base_path = Path(base_path).resolve()
+            
+        if not self.base_path.exists():
+            raise DirectoryNotFoundError(f"Base path does not exist: {self.base_path}")
+        
+        if not self.base_path.is_dir():
+            raise DirectoryNotFoundError(f"Base path is not a directory: {self.base_path}")
+            
+        # Test write permissions
+        try:
+            test_file = self.base_path / '.test_write_permissions'
+            test_file.touch()
+            test_file.unlink()
+        except OSError as e:
+            logger.warning(f"Limited write permissions in base path: {e}")
+        
+        logger.debug(f"FileManager initialized with base path: {self.base_path}")
         
     def create_directory(self, path: Union[str, Path], parents: bool = True) -> Path:
         """Create a directory with optional parent creation."""
@@ -29,9 +80,38 @@ class FileManager:
         return self.base_path / path
     
     def read_text(self, path: Union[str, Path], encoding: str = "utf-8") -> str:
-        """Read text content from a file."""
+        """Read text content from a file.
+        
+        Args:
+            path: File path to read
+            encoding: Text encoding to use
+            
+        Returns:
+            File content as string
+            
+        Raises:
+            FileNotFoundError: If file doesn't exist
+            PermissionError: If file is not readable
+            UnicodeDecodeError: If file cannot be decoded with given encoding
+        """
         full_path = self._resolve_path(path)
-        return full_path.read_text(encoding=encoding)
+        
+        if not full_path.exists():
+            raise FileNotFoundError(f"File not found: {full_path}")
+            
+        if not full_path.is_file():
+            raise FileOperationError(f"Path is not a file: {full_path}")
+        
+        try:
+            logger.debug(f"Reading text file: {full_path}")
+            return full_path.read_text(encoding=encoding)
+        except OSError as e:
+            raise PermissionError(f"Cannot read file {full_path}: {e}") from e
+        except UnicodeDecodeError as e:
+            raise UnicodeDecodeError(
+                e.encoding, e.object, e.start, e.end,
+                f"Cannot decode file {full_path} with encoding {encoding}: {e.reason}"
+            ) from e
         
     def write_text(self, path: Union[str, Path], content: str, encoding: str = "utf-8") -> None:
         """Write text content to a file."""
