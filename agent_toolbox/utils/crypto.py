@@ -1,0 +1,44 @@
+"""Cryptographic utilities for basic encryption, hashing, and tokens."""
+
+import hashlib
+import hmac
+import secrets
+import base64
+from typing import Union, Optional
+
+
+def generate_random_string(length: int = 32, url_safe: bool = True) -> str:
+    """Generate cryptographically secure random string."""
+    if url_safe:
+        return secrets.token_urlsafe(length)[:length]
+    else:
+        return secrets.token_hex(length//2)
+
+
+def generate_api_key(length: int = 32) -> str:
+    """Generate API key with standard format."""
+    return "atb_" + generate_random_string(length - 4, url_safe=True)
+
+
+def hash_string(text: str, algorithm: str = "sha256") -> str:
+    """Hash string using specified algorithm."""
+    if algorithm not in hashlib.algorithms_available:
+        raise ValueError(f"Algorithm {algorithm} not available")
+        
+    hasher = hashlib.new(algorithm)
+    hasher.update(text.encode('utf-8'))
+    return hasher.hexdigest()
+
+
+def hash_file(file_path: str, algorithm: str = "sha256", chunk_size: int = 8192) -> str:
+    """Hash file contents using specified algorithm."""
+    if algorithm not in hashlib.algorithms_available:
+        raise ValueError(f"Algorithm {algorithm} not available")
+        
+    hasher = hashlib.new(algorithm)
+    
+    with open(file_path, 'rb') as f:
+        while chunk := f.read(chunk_size):
+            hasher.update(chunk)
+            
+    return hasher.hexdigest()
