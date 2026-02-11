@@ -58,3 +58,16 @@ class FileManager:
         full_path.parent.mkdir(parents=True, exist_ok=True)
         with open(full_path, 'w') as f:
             json.dump(data, f, indent=indent)
+            
+    def read_yaml(self, path: Union[str, Path]) -> Dict[str, Any]:
+        """Read YAML content from a file."""
+        full_path = self._resolve_path(path)
+        with open(full_path, 'r') as f:
+            return yaml.safe_load(f)
+            
+    def write_yaml(self, path: Union[str, Path], data: Dict[str, Any]) -> None:
+        """Write data to a YAML file."""
+        full_path = self._resolve_path(path)
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(full_path, 'w') as f:
+            yaml.safe_dump(data, f, default_flow_style=False)
