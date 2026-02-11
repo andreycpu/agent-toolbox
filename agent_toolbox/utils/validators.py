@@ -126,3 +126,50 @@ def validate_not_empty(value: Any) -> bool:
     if hasattr(value, '__len__'):
         return len(value) > 0
     return True
+
+
+class ValidationError(Exception):
+    """Custom validation error."""
+    pass
+
+
+def validate_with_schema(data: Dict[str, Any], schema: Dict[str, Dict[str, Any]]) -> List[str]:
+    """Validate data against a schema and return list of errors."""
+    errors = []
+    
+    for field, rules in schema.items():
+        value = data.get(field)
+        field_errors = []
+        
+        # Check required
+        if rules.get('required', False) and not validate_not_empty(value):
+            field_errors.append(f"{field} is required")
+            continue
+            
+        # Skip validation if field is not required and empty
+        if not validate_not_empty(value) and not rules.get('required', False):
+            continue
+            
+        # Type validation
+        if 'type' in rules and not validate_type(value, rules['type']):
+            field_errors.append(f"{field} must be of type {rules['type'].__name__}")
+            
+        # Length validation
+        if 'min_length' in rules or 'max_length' in rules:
+            if not validate_length(value, rules.get('min_length'), rules.get('max_length')):
+                field_errors.append(f"{field} length is invalid")
+                
+        # Range validation for numbers
+        if 'min_value' in rules or 'max_value' in rules:
+            if not validate_range(value, rules.get('min_value'), rules.get('max_value')):
+                field_errors.append(f"{field} value is out of range")
+                
+        # Custom validator
+        if 'validator' in rules:
+            validator_func = rules['validator']
+            if callable(validator_func) and not validator_func(value):
+                field_errors.append(f"{field} failed custom validation")
+                
+        errors.extend(field_errors)
+        
+    return errors
