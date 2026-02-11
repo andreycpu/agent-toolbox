@@ -86,3 +86,32 @@ class FileManager:
         """Check if path is a directory."""
         full_path = self._resolve_path(path)
         return full_path.is_dir()
+        
+    def copy_file(self, src: Union[str, Path], dst: Union[str, Path]) -> None:
+        """Copy a file to a new location."""
+        src_path = self._resolve_path(src)
+        dst_path = self._resolve_path(dst)
+        dst_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src_path, dst_path)
+        
+    def move_file(self, src: Union[str, Path], dst: Union[str, Path]) -> None:
+        """Move a file to a new location."""
+        src_path = self._resolve_path(src)
+        dst_path = self._resolve_path(dst)
+        dst_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(src_path), str(dst_path))
+        
+    def delete_file(self, path: Union[str, Path]) -> None:
+        """Delete a file."""
+        full_path = self._resolve_path(path)
+        if full_path.is_file():
+            full_path.unlink()
+            
+    def delete_directory(self, path: Union[str, Path], recursive: bool = False) -> None:
+        """Delete a directory."""
+        full_path = self._resolve_path(path)
+        if full_path.is_dir():
+            if recursive:
+                shutil.rmtree(full_path)
+            else:
+                full_path.rmdir()
