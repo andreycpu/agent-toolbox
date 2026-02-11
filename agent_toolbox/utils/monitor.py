@@ -148,3 +148,28 @@ class PerformanceMonitor:
         with self.lock:
             self.metrics.clear()
             self.counters.clear()
+
+
+# Global performance monitor instance
+_global_perf_monitor = PerformanceMonitor()
+
+def monitor_performance(func_name: Optional[str] = None):
+    """Decorator to monitor function performance using global monitor."""
+    import functools
+    
+    def decorator(func: Callable) -> Callable:
+        name = func_name or func.__name__
+        return _global_perf_monitor.time_function(name)(func)
+    return decorator
+
+def get_performance_stats() -> Dict[str, Any]:
+    """Get performance statistics from global monitor."""
+    return _global_perf_monitor.get_all_stats()
+
+def record_timing(metric_name: str, duration: float) -> None:
+    """Record timing using global monitor."""
+    _global_perf_monitor.record_timing(metric_name, duration)
+
+def increment_counter(counter_name: str, value: int = 1) -> None:
+    """Increment counter using global monitor.""" 
+    _global_perf_monitor.increment_counter(counter_name, value)
