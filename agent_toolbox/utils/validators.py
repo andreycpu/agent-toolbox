@@ -173,3 +173,36 @@ def validate_with_schema(data: Dict[str, Any], schema: Dict[str, Dict[str, Any]]
         errors.extend(field_errors)
         
     return errors
+
+
+def validate_input(**validators):
+    """Decorator to validate function inputs."""
+    import functools
+    import inspect
+    
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            # Get function signature for parameter names
+            sig = inspect.signature(func)
+            param_names = list(sig.parameters.keys())
+            
+            # Map positional args to parameter names
+            for i, arg in enumerate(args):
+                if i < len(param_names):
+                    param_name = param_names[i]
+                    if param_name in validators:
+                        validator_func = validators[param_name]
+                        if not validator_func(arg):
+                            raise ValidationError(f"Invalid value for parameter '{param_name}': {arg}")
+                            
+            # Validate keyword arguments
+            for param_name, value in kwargs.items():
+                if param_name in validators:
+                    validator_func = validators[param_name]
+                    if not validator_func(value):
+                        raise ValidationError(f"Invalid value for parameter '{param_name}': {value}")
+                        
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
