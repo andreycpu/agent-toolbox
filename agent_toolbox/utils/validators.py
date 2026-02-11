@@ -47,3 +47,38 @@ def validate_ip_address(ip: str, version: Optional[int] = None) -> bool:
         return addr.version == version
     except ValueError:
         return False
+
+
+def validate_phone(phone: str, country_code: Optional[str] = None) -> bool:
+    """Validate phone number format (basic validation)."""
+    # Remove common formatting
+    cleaned = re.sub(r'[^\d+]', '', phone)
+    
+    # Basic validation patterns
+    if country_code == 'US':
+        # US phone number: +1XXXXXXXXXX or 1XXXXXXXXXX or XXXXXXXXXX
+        pattern = r'^(\+?1)?[0-9]{10}$'
+    else:
+        # International: must start with + and have 7-15 digits
+        pattern = r'^\+[1-9][0-9]{6,14}$'
+        
+    return re.match(pattern, cleaned) is not None
+
+
+def validate_json(json_str: str) -> bool:
+    """Validate JSON string format."""
+    import json
+    try:
+        json.loads(json_str)
+        return True
+    except (json.JSONDecodeError, TypeError):
+        return False
+
+
+def validate_regex(pattern: str) -> bool:
+    """Validate regex pattern syntax."""
+    try:
+        re.compile(pattern)
+        return True
+    except re.error:
+        return False
