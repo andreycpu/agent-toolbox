@@ -91,3 +91,70 @@ class WebScraper:
             })
             
         return images
+        
+    def extract_by_selector(self, url: str, selector: str) -> List[Dict[str, str]]:
+        """Extract elements using CSS selectors."""
+        response = self.get_page(url)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        elements = []
+        for element in soup.select(selector):
+            elements.append({
+                'tag': element.name,
+                'text': element.get_text(strip=True),
+                'html': str(element),
+                'attributes': dict(element.attrs)
+            })
+            
+        return elements
+        
+    def extract_tables(self, url: str) -> List[List[List[str]]]:
+        """Extract all tables as nested lists."""
+        response = self.get_page(url)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        tables = []
+        for table in soup.find_all('table'):
+            rows = []
+            for row in table.find_all('tr'):
+                cells = [cell.get_text(strip=True) for cell in row.find_all(['td', 'th'])]
+                if cells:  # Skip empty rows
+                    rows.append(cells)
+            if rows:  # Skip empty tables
+                tables.append(rows)
+                
+        return tables
+        
+    def extract_metadata(self, url: str) -> Dict[str, str]:
+        """Extract page metadata (title, description, etc.)."""
+        response = self.get_page(url)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        metadata = {
+            'title': '',
+            'description': '',
+            'keywords': '',
+            'author': '',
+            'url': url
+        }
+        
+        # Extract title
+        title_tag = soup.find('title')
+        if title_tag:
+            metadata['title'] = title_tag.get_text(strip=True)
+            
+        # Extract meta tags
+        meta_tags = soup.find_all('meta')
+        for meta in meta_tags:
+            name = meta.get('name', '').lower()
+            property_attr = meta.get('property', '').lower()
+            content = meta.get('content', '')
+            
+            if name in ['description', 'keywords', 'author']:
+                metadata[name] = content
+            elif property_attr == 'og:description':
+                metadata['description'] = content or metadata['description']
+            elif property_attr == 'og:title':
+                metadata['title'] = content or metadata['title']
+                
+        return metadata
