@@ -173,3 +173,54 @@ class FileCache:
                 removed_count += 1
                 
         return removed_count
+
+
+def cache_result(cache_instance: Union[SimpleCache, FileCache], 
+                ttl: Optional[int] = None,
+                key_func: Optional[Callable] = None):
+    """Decorator to cache function results."""
+    
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            # Generate cache key
+            if key_func:
+                cache_key = key_func(*args, **kwargs)
+            else:
+                # Default key generation
+                key_parts = [func.__name__]
+                key_parts.extend(str(arg) for arg in args)
+                key_parts.extend(f"{k}={v}" for k, v in sorted(kwargs.items()))
+                cache_key = ":".join(key_parts)
+            
+            # Try to get from cache
+            cached_result = cache_instance.get(cache_key)
+            if cached_result is not None:
+                return cached_result
+            
+            # Compute result and cache it
+            result = func(*args, **kwargs)
+            cache_instance.set(cache_key, result, ttl)
+            
+            return result
+        
+        return wrapper
+    return decorator
+
+
+def memoize(ttl: Optional[int] = None, cache_dir: Optional[str] = None):
+    """Simple memoization decorator."""
+    if cache_dir:
+        cache_instance = FileCache(cache_dir=cache_dir, default_ttl=ttl or 3600)
+    else:
+        cache_instance = SimpleCache(default_ttl=ttl or 3600)
+        
+    return cache_result(cache_instance, ttl=ttl)
+
+
+# Convenience function for quick caching
+_default_cache = SimpleCache()
+
+def cached(ttl: int = 3600):
+    """Quick caching decorator using default cache instance."""
+    return cache_result(_default_cache, ttl=ttl)
