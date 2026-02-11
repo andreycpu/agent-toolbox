@@ -83,3 +83,39 @@ class SimpleCache:
                 'entries': len(self._cache),
                 'memory_usage_bytes': len(str(self._cache).encode('utf-8'))
             }
+
+
+class FileCache:
+    """File-based cache with persistence."""
+    
+    def __init__(self, cache_dir: Union[str, Path] = ".cache", default_ttl: int = 3600):
+        """Initialize file cache."""
+        self.cache_dir = Path(cache_dir)
+        self.cache_dir.mkdir(exist_ok=True)
+        self.default_ttl = default_ttl
+        
+    def _get_cache_path(self, key: str) -> Path:
+        """Get cache file path for key."""
+        # Create hash of key for filename
+        key_hash = hashlib.md5(key.encode()).hexdigest()
+        return self.cache_dir / f"{key_hash}.cache"
+        
+    def get(self, key: str) -> Optional[Any]:
+        """Get value from cache."""
+        cache_path = self._get_cache_path(key)
+        
+        if not cache_path.exists():
+            return None
+            
+        try:
+            with open(cache_path, 'rb') as f:
+                entry = pickle.load(f)
+                
+            # Check if expired
+            if entry['expires_at'] < time.time():
+                cache_path.unlink()
+                return None
+                
+            return entry['value']
+        except (pickle.PickleError, FileNotFoundError, KeyError):
+            return None
