@@ -68,3 +68,54 @@ def format_percentage(value: float, decimal_places: int = 1) -> str:
 def format_json(data: Any, indent: int = 2, sort_keys: bool = True) -> str:
     """Format data as pretty-printed JSON."""
     return json.dumps(data, indent=indent, sort_keys=sort_keys, default=str)
+
+
+def format_table(data: List[Dict[str, Any]], headers: Optional[List[str]] = None) -> str:
+    """Format list of dictionaries as ASCII table."""
+    if not data:
+        return "No data"
+        
+    # Get headers
+    if headers is None:
+        headers = list(data[0].keys())
+        
+    # Calculate column widths
+    col_widths = {}
+    for header in headers:
+        col_widths[header] = len(str(header))
+        
+    for row in data:
+        for header in headers:
+            value = str(row.get(header, ''))
+            col_widths[header] = max(col_widths[header], len(value))
+            
+    # Build table
+    lines = []
+    
+    # Header line
+    header_line = "| " + " | ".join(h.ljust(col_widths[h]) for h in headers) + " |"
+    lines.append(header_line)
+    
+    # Separator line
+    sep_line = "| " + " | ".join("-" * col_widths[h] for h in headers) + " |"
+    lines.append(sep_line)
+    
+    # Data lines
+    for row in data:
+        data_line = "| " + " | ".join(str(row.get(h, '')).ljust(col_widths[h]) for h in headers) + " |"
+        lines.append(data_line)
+        
+    return "\n".join(lines)
+
+
+def format_list(items: List[Any], bullet: str = "•", indent: int = 2) -> str:
+    """Format list as bulleted text."""
+    if not items:
+        return "No items"
+        
+    lines = []
+    for item in items:
+        line = " " * indent + bullet + " " + str(item)
+        lines.append(line)
+        
+    return "\n".join(lines)
