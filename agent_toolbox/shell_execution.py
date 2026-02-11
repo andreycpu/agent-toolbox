@@ -154,3 +154,58 @@ class ShellExecutor:
                 os.unlink(script_path)
                 
         return result
+        
+    def execute_background(self, command: str, 
+                          env_vars: Optional[Dict[str, str]] = None) -> subprocess.Popen:
+        """Execute command in background and return process handle."""
+        
+        if not self._validate_command(command):
+            raise ValueError(f"Command blocked for security: {command}")
+            
+        # Prepare environment
+        env = os.environ.copy()
+        if env_vars:
+            env.update(env_vars)
+            
+        process = subprocess.Popen(
+            shlex.split(command),
+            cwd=str(self.working_directory),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env
+        )
+        
+        return process
+        
+    def wait_for_process(self, process: subprocess.Popen, 
+                        timeout: Optional[int] = None) -> Dict[str, Union[str, int]]:
+        """Wait for background process to complete."""
+        
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+            return {
+                'stdout': stdout,
+                'stderr': stderr,
+                'return_code': process.returncode,
+                'success': process.returncode == 0
+            }
+        except subprocess.TimeoutExpired:
+            process.kill()
+            stdout, stderr = process.communicate()
+            return {
+                'stdout': stdout,
+                'stderr': stderr + f"\nProcess killed due to timeout ({timeout}s)",
+                'return_code': -1,
+                'success': False
+            }
+            
+    def is_process_running(self, process: subprocess.Popen) -> bool:
+        """Check if background process is still running."""
+        return process.poll() is None
+        
+    def kill_process(self, process: subprocess.Popen) -> None:
+        """Kill a background process."""
+        if self.is_process_running(process):
+            process.kill()
+            process.wait()
