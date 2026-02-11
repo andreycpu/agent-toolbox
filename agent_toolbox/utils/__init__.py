@@ -11,6 +11,10 @@ from .validators import (
     validate_type, validate_not_empty, validate_with_schema,
     validate_input, ValidationError
 )
+from .monitor import (
+    SystemMonitor, PerformanceMonitor, monitor_performance,
+    get_performance_stats, record_timing, increment_counter
+)
 
 __all__ = [
     "ConfigManager",
@@ -34,4 +38,10 @@ __all__ = [
     "validate_with_schema",
     "validate_input",
     "ValidationError",
+    "SystemMonitor",
+    "PerformanceMonitor", 
+    "monitor_performance",
+    "get_performance_stats",
+    "record_timing",
+    "increment_counter",
 ]
