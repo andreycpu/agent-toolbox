@@ -19,6 +19,11 @@ from .formatters import (
     format_bytes, format_duration, format_number, format_percentage,
     format_json, format_table, format_list
 )
+from .crypto import (
+    generate_random_string, generate_api_key, hash_string, hash_file,
+    generate_hmac, verify_hmac, encode_base64, decode_base64,
+    encode_base64_url, decode_base64_url
+)
 
 __all__ = [
     "ConfigManager",
@@ -55,4 +60,14 @@ __all__ = [
     "format_json",
     "format_table",
     "format_list",
+    "generate_random_string",
+    "generate_api_key",
+    "hash_string",
+    "hash_file",
+    "generate_hmac",
+    "verify_hmac",
+    "encode_base64",
+    "decode_base64",
+    "encode_base64_url",
+    "decode_base64_url",
 ]
