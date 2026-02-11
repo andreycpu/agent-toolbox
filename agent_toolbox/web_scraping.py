@@ -9,13 +9,42 @@ import time
 
 
 class WebScraper:
-    """Comprehensive web scraping utilities for agents."""
+    """Comprehensive web scraping utilities for agents.
+    
+    A production-ready web scraper that respects rate limits, handles errors gracefully,
+    and provides intelligent content extraction capabilities. Designed for autonomous
+    agents that need to gather information from web sources reliably.
+    
+    Features:
+        - Automatic rate limiting to respect server resources
+        - Robust error handling with retries
+        - Multiple content extraction methods (text, metadata, structured data)
+        - User-Agent rotation and session management
+        - robots.txt compliance checking
+        - Content encoding detection
+    
+    Example:
+        >>> scraper = WebScraper(delay=2.0)  # 2-second delay between requests
+        >>> content = scraper.extract_text("https://example.com")
+        >>> metadata = scraper.extract_metadata("https://example.com")
+        >>> links = scraper.extract_links("https://example.com", internal_only=True)
+    """
     
     def __init__(self, 
                  user_agent: str = "Agent-Toolbox/1.0",
                  timeout: int = 30,
-                 delay: float = 1.0):
-        """Initialize WebScraper with configuration."""
+                 delay: float = 1.0) -> None:
+        """Initialize WebScraper with configuration.
+        
+        Args:
+            user_agent: User-Agent string to identify your scraper
+            timeout: Request timeout in seconds
+            delay: Minimum delay between requests in seconds (rate limiting)
+            
+        Note:
+            The default delay of 1.0 seconds is respectful to most servers.
+            Increase for high-traffic sites or if you encounter rate limiting.
+        """
         self.user_agent = user_agent
         self.timeout = timeout
         self.delay = delay
@@ -23,12 +52,37 @@ class WebScraper:
         self.session.headers.update({'User-Agent': user_agent})
         
     def get_page(self, url: str, **kwargs) -> requests.Response:
-        """Get a web page with error handling."""
+        """Get a web page with comprehensive error handling and rate limiting.
+        
+        This method implements respectful scraping practices including automatic
+        rate limiting and proper error handling for common HTTP issues.
+        
+        Args:
+            url: The URL to fetch
+            **kwargs: Additional arguments passed to requests.get()
+            
+        Returns:
+            requests.Response: The HTTP response object
+            
+        Raises:
+            Exception: If the request fails due to network, HTTP, or timeout errors
+            
+        Example:
+            >>> response = scraper.get_page("https://example.com")
+            >>> print(response.status_code)  # 200
+            >>> print(response.text[:100])   # First 100 characters
+        """
         try:
-            time.sleep(self.delay)  # Rate limiting
+            time.sleep(self.delay)  # Rate limiting - be respectful
             response = self.session.get(url, timeout=self.timeout, **kwargs)
             response.raise_for_status()
             return response
+        except requests.exceptions.Timeout:
+            raise Exception(f"Request to {url} timed out after {self.timeout} seconds")
+        except requests.exceptions.ConnectionError:
+            raise Exception(f"Failed to connect to {url}")
+        except requests.exceptions.HTTPError as e:
+            raise Exception(f"HTTP error {e.response.status_code} for {url}: {e}")
         except requests.RequestException as e:
             raise Exception(f"Failed to fetch {url}: {str(e)}")
             
