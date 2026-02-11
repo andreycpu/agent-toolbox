@@ -89,3 +89,61 @@ class SimpleScheduler:
     def list_tasks(self) -> List[Dict[str, Any]]:
         """List all tasks and their status."""
         return [self.get_task_status(task_id) for task_id in self.tasks.keys()]
+        
+    def start(self) -> None:
+        """Start the scheduler."""
+        if self.running:
+            return
+            
+        self.running = True
+        self.scheduler_thread = threading.Thread(target=self._run_scheduler, daemon=True)
+        self.scheduler_thread.start()
+        self.logger.info("Scheduler started")
+        
+    def stop(self) -> None:
+        """Stop the scheduler."""
+        self.running = False
+        if self.scheduler_thread and self.scheduler_thread.is_alive():
+            self.scheduler_thread.join(timeout=5)
+        self.logger.info("Scheduler stopped")
+        
+    def _run_scheduler(self) -> None:
+        """Main scheduler loop."""
+        while self.running:
+            current_time = time.time()
+            
+            # Check which tasks need to run
+            for task in self.tasks.values():
+                if task.should_run():
+                    try:
+                        task.run()
+                    except Exception as e:
+                        self.logger.error(f"Task {task.task_id} failed: {e}")
+                        
+            time.sleep(0.1)  # Small sleep to prevent busy waiting
+
+
+# Convenience functions for common scheduling patterns
+def schedule_every(seconds: float):
+    """Decorator to schedule function every N seconds."""
+    def decorator(func: Callable) -> Callable:
+        scheduler = SimpleScheduler()
+        scheduler.add_task(func, seconds)
+        scheduler.start()
+        return func
+    return decorator
+
+
+def run_once_after(seconds: float):
+    """Decorator to run function once after N seconds."""
+    def decorator(func: Callable) -> Callable:
+        def wrapper(*args, **kwargs):
+            def delayed_execution():
+                time.sleep(seconds)
+                return func(*args, **kwargs)
+            
+            thread = threading.Thread(target=delayed_execution, daemon=True)
+            thread.start()
+            return thread
+        return wrapper
+    return decorator
