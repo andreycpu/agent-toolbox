@@ -51,3 +51,43 @@ class WebScraper:
             text = '\n'.join(chunk for chunk in chunks if chunk)
             
         return text
+        
+    def extract_links(self, url: str, absolute: bool = True) -> List[Dict[str, str]]:
+        """Extract all links from a webpage."""
+        response = self.get_page(url)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        links = []
+        for link in soup.find_all('a', href=True):
+            href = link['href']
+            if absolute:
+                href = urljoin(url, href)
+            
+            links.append({
+                'url': href,
+                'text': link.get_text(strip=True),
+                'title': link.get('title', '')
+            })
+            
+        return links
+        
+    def extract_images(self, url: str, absolute: bool = True) -> List[Dict[str, str]]:
+        """Extract all images from a webpage."""
+        response = self.get_page(url)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        images = []
+        for img in soup.find_all('img'):
+            src = img.get('src', '')
+            if src and absolute:
+                src = urljoin(url, src)
+                
+            images.append({
+                'src': src,
+                'alt': img.get('alt', ''),
+                'title': img.get('title', ''),
+                'width': img.get('width', ''),
+                'height': img.get('height', '')
+            })
+            
+        return images
