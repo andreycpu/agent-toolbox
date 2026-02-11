@@ -119,3 +119,57 @@ class FileCache:
             return entry['value']
         except (pickle.PickleError, FileNotFoundError, KeyError):
             return None
+            
+    def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
+        """Set value in cache."""
+        if ttl is None:
+            ttl = self.default_ttl
+            
+        cache_path = self._get_cache_path(key)
+        expires_at = time.time() + ttl
+        
+        entry = {
+            'key': key,
+            'value': value,
+            'expires_at': expires_at,
+            'created_at': time.time()
+        }
+        
+        try:
+            with open(cache_path, 'wb') as f:
+                pickle.dump(entry, f)
+        except pickle.PickleError:
+            pass  # Silently fail for unpicklable objects
+            
+    def delete(self, key: str) -> bool:
+        """Delete key from cache."""
+        cache_path = self._get_cache_path(key)
+        if cache_path.exists():
+            cache_path.unlink()
+            return True
+        return False
+        
+    def clear(self) -> None:
+        """Clear all cache files."""
+        for cache_file in self.cache_dir.glob("*.cache"):
+            cache_file.unlink()
+            
+    def cleanup_expired(self) -> int:
+        """Remove expired cache files."""
+        current_time = time.time()
+        removed_count = 0
+        
+        for cache_file in self.cache_dir.glob("*.cache"):
+            try:
+                with open(cache_file, 'rb') as f:
+                    entry = pickle.load(f)
+                    
+                if entry.get('expires_at', 0) < current_time:
+                    cache_file.unlink()
+                    removed_count += 1
+            except (pickle.PickleError, FileNotFoundError, KeyError):
+                # Remove corrupted files
+                cache_file.unlink()
+                removed_count += 1
+                
+        return removed_count
