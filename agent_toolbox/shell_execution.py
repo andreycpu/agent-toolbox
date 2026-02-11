@@ -1,211 +1,183 @@
-"""Shell execution utilities with safety features for agent tasks."""
+"""Shell execution utilities for agent tasks."""
 
 import subprocess
 import shlex
 import os
-import tempfile
-import time
-from pathlib import Path
-from typing import Dict, List, Optional, Union, Tuple
+import signal
 import threading
+import time
+from typing import Dict, List, Optional, Tuple, Union, Any
+from pathlib import Path
 
 
 class ShellExecutor:
-    """Safe shell command execution utilities for agents."""
+    """Safe shell command execution for agents."""
     
     def __init__(self, 
                  working_directory: Optional[Union[str, Path]] = None,
-                 timeout: int = 300,
-                 allowed_commands: Optional[List[str]] = None,
-                 blocked_commands: Optional[List[str]] = None):
-        """Initialize ShellExecutor with safety settings."""
+                 environment: Optional[Dict[str, str]] = None,
+                 timeout: Optional[float] = None):
+        """Initialize ShellExecutor."""
         self.working_directory = Path(working_directory) if working_directory else Path.cwd()
+        self.environment = environment or {}
         self.timeout = timeout
-        self.allowed_commands = allowed_commands or []
-        self.blocked_commands = blocked_commands or ['rm -rf', 'sudo rm', 'format', 'fdisk']
-        
-    def _validate_command(self, command: str) -> bool:
-        """Validate command against allow/block lists."""
-        # Check blocked commands
-        for blocked in self.blocked_commands:
-            if blocked.lower() in command.lower():
-                return False
-                
-        # Check allowed commands (if specified)
-        if self.allowed_commands:
-            for allowed in self.allowed_commands:
-                if command.lower().startswith(allowed.lower()):
-                    return True
-            return False
-            
-        return True
+        self._active_processes: Dict[str, subprocess.Popen] = {}
         
     def execute(self, 
-                command: str, 
+                command: Union[str, List[str]], 
                 capture_output: bool = True,
-                check_return_code: bool = True,
-                env_vars: Optional[Dict[str, str]] = None) -> Dict[str, Union[str, int]]:
+                timeout: Optional[float] = None,
+                shell: bool = False,
+                check: bool = False) -> subprocess.CompletedProcess:
         """Execute a shell command safely."""
+        if isinstance(command, str) and not shell:
+            command = shlex.split(command)
         
-        if not self._validate_command(command):
-            raise ValueError(f"Command blocked for security: {command}")
-            
-        # Prepare environment
         env = os.environ.copy()
-        if env_vars:
-            env.update(env_vars)
-            
+        env.update(self.environment)
+        
         try:
-            # Execute command
             result = subprocess.run(
-                shlex.split(command),
-                cwd=str(self.working_directory),
+                command,
+                cwd=self.working_directory,
+                env=env,
                 capture_output=capture_output,
                 text=True,
-                timeout=self.timeout,
-                env=env
+                timeout=timeout or self.timeout,
+                shell=shell,
+                check=check
+            )
+            return result
+        except subprocess.TimeoutExpired as e:
+            raise TimeoutError(f"Command timed out: {command}") from e
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Command failed with exit code {e.returncode}: {command}") from e
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"Command not found: {command}") from e
+    
+    def execute_async(self,
+                     command: Union[str, List[str]],
+                     process_id: Optional[str] = None,
+                     shell: bool = False) -> str:
+        """Execute a command asynchronously and return process ID."""
+        if isinstance(command, str) and not shell:
+            command = shlex.split(command)
+        
+        env = os.environ.copy()
+        env.update(self.environment)
+        
+        process_id = process_id or f"proc_{int(time.time() * 1000)}"
+        
+        try:
+            proc = subprocess.Popen(
+                command,
+                cwd=self.working_directory,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                shell=shell
             )
             
-            if check_return_code:
-                result.check_returncode()
-                
-            return {
-                'stdout': result.stdout if capture_output else '',
-                'stderr': result.stderr if capture_output else '',
-                'return_code': result.returncode,
-                'command': command,
-                'success': result.returncode == 0
-            }
+            self._active_processes[process_id] = proc
+            return process_id
             
-        except subprocess.TimeoutExpired:
-            raise Exception(f"Command timed out after {self.timeout} seconds: {command}")
-        except subprocess.CalledProcessError as e:
-            if check_return_code:
-                raise Exception(f"Command failed with return code {e.returncode}: {command}")
-            else:
-                return {
-                    'stdout': e.stdout if capture_output else '',
-                    'stderr': e.stderr if capture_output else '',
-                    'return_code': e.returncode,
-                    'command': command,
-                    'success': False
-                }
-        except Exception as e:
-            raise Exception(f"Failed to execute command: {str(e)}")
-            
-    def execute_batch(self, commands: List[str], 
-                      stop_on_error: bool = True) -> List[Dict[str, Union[str, int]]]:
-        """Execute multiple commands in sequence."""
-        results = []
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"Command not found: {command}") from e
+    
+    def get_process_status(self, process_id: str) -> Dict[str, Any]:
+        """Get status of an async process."""
+        if process_id not in self._active_processes:
+            raise ValueError(f"Process ID not found: {process_id}")
         
-        for command in commands:
+        proc = self._active_processes[process_id]
+        poll_result = proc.poll()
+        
+        return {
+            'process_id': process_id,
+            'pid': proc.pid,
+            'running': poll_result is None,
+            'return_code': poll_result,
+            'command': ' '.join(proc.args) if isinstance(proc.args, list) else proc.args
+        }
+    
+    def get_process_output(self, process_id: str, timeout: Optional[float] = None) -> Tuple[str, str]:
+        """Get output from an async process."""
+        if process_id not in self._active_processes:
+            raise ValueError(f"Process ID not found: {process_id}")
+        
+        proc = self._active_processes[process_id]
+        
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+            del self._active_processes[process_id]
+            return stdout, stderr
+        except subprocess.TimeoutExpired:
+            raise TimeoutError(f"Process output retrieval timed out: {process_id}")
+    
+    def terminate_process(self, process_id: str, force: bool = False) -> bool:
+        """Terminate an async process."""
+        if process_id not in self._active_processes:
+            return False
+        
+        proc = self._active_processes[process_id]
+        
+        if force:
+            proc.kill()
+        else:
+            proc.terminate()
+        
+        try:
+            proc.wait(timeout=5)
+            del self._active_processes[process_id]
+            return True
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+            del self._active_processes[process_id]
+            return True
+    
+    def list_processes(self) -> List[Dict[str, Any]]:
+        """List all active processes."""
+        processes = []
+        for process_id in list(self._active_processes.keys()):
             try:
-                result = self.execute(command, check_return_code=stop_on_error)
-                results.append(result)
-                
-                if stop_on_error and not result['success']:
-                    break
-                    
-            except Exception as e:
-                result = {
-                    'stdout': '',
-                    'stderr': str(e),
-                    'return_code': -1,
-                    'command': command,
-                    'success': False
-                }
-                results.append(result)
-                
-                if stop_on_error:
-                    break
-                    
-        return results
+                status = self.get_process_status(process_id)
+                processes.append(status)
+            except ValueError:
+                continue
+        return processes
+    
+    def cleanup_finished_processes(self) -> int:
+        """Clean up finished processes and return count of cleaned up processes."""
+        finished_processes = []
         
-    def execute_script(self, script_content: str, 
-                       script_type: str = 'bash',
-                       cleanup: bool = True) -> Dict[str, Union[str, int]]:
-        """Execute a script from string content."""
+        for process_id, proc in self._active_processes.items():
+            if proc.poll() is not None:
+                finished_processes.append(process_id)
         
-        # Create temporary script file
-        script_extensions = {'bash': '.sh', 'python': '.py', 'powershell': '.ps1'}
-        extension = script_extensions.get(script_type, '.sh')
+        for process_id in finished_processes:
+            del self._active_processes[process_id]
         
-        with tempfile.NamedTemporaryFile(mode='w', suffix=extension, delete=False) as f:
-            f.write(script_content)
-            script_path = f.name
-            
-        try:
-            # Make executable if shell script
-            if script_type in ['bash', 'sh']:
-                os.chmod(script_path, 0o755)
-                command = f"bash {script_path}"
-            elif script_type == 'python':
-                command = f"python {script_path}"
-            elif script_type == 'powershell':
-                command = f"powershell -File {script_path}"
-            else:
-                command = script_path
-                
-            result = self.execute(command)
-            
-        finally:
-            # Cleanup temporary file
-            if cleanup and os.path.exists(script_path):
-                os.unlink(script_path)
-                
-        return result
-        
-    def execute_background(self, command: str, 
-                          env_vars: Optional[Dict[str, str]] = None) -> subprocess.Popen:
-        """Execute command in background and return process handle."""
-        
-        if not self._validate_command(command):
-            raise ValueError(f"Command blocked for security: {command}")
-            
-        # Prepare environment
-        env = os.environ.copy()
-        if env_vars:
-            env.update(env_vars)
-            
-        process = subprocess.Popen(
-            shlex.split(command),
-            cwd=str(self.working_directory),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            env=env
-        )
-        
-        return process
-        
-    def wait_for_process(self, process: subprocess.Popen, 
-                        timeout: Optional[int] = None) -> Dict[str, Union[str, int]]:
-        """Wait for background process to complete."""
-        
-        try:
-            stdout, stderr = process.communicate(timeout=timeout)
-            return {
-                'stdout': stdout,
-                'stderr': stderr,
-                'return_code': process.returncode,
-                'success': process.returncode == 0
-            }
-        except subprocess.TimeoutExpired:
-            process.kill()
-            stdout, stderr = process.communicate()
-            return {
-                'stdout': stdout,
-                'stderr': stderr + f"\nProcess killed due to timeout ({timeout}s)",
-                'return_code': -1,
-                'success': False
-            }
-            
-    def is_process_running(self, process: subprocess.Popen) -> bool:
-        """Check if background process is still running."""
-        return process.poll() is None
-        
-    def kill_process(self, process: subprocess.Popen) -> None:
-        """Kill a background process."""
-        if self.is_process_running(process):
-            process.kill()
-            process.wait()
+        return len(finished_processes)
+    
+    def set_working_directory(self, path: Union[str, Path]) -> None:
+        """Set the working directory for future commands."""
+        self.working_directory = Path(path)
+    
+    def set_environment_variable(self, key: str, value: str) -> None:
+        """Set an environment variable for future commands."""
+        self.environment[key] = value
+    
+    def unset_environment_variable(self, key: str) -> None:
+        """Remove an environment variable."""
+        self.environment.pop(key, None)
+    
+    def get_environment(self) -> Dict[str, str]:
+        """Get current environment variables."""
+        return self.environment.copy()
+    
+    def __del__(self):
+        """Cleanup any remaining processes."""
+        for process_id in list(self._active_processes.keys()):
+            self.terminate_process(process_id, force=True)
