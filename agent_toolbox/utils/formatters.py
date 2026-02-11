@@ -50,3 +50,21 @@ def format_duration(seconds: float, precision: int = 2) -> str:
         return f"{seconds:.2f}s"
         
     return " ".join(parts)
+
+
+def format_number(number: Union[int, float], precision: int = 2) -> str:
+    """Format number with thousand separators."""
+    if isinstance(number, int):
+        return f"{number:,}"
+    else:
+        return f"{number:,.{precision}f}"
+
+
+def format_percentage(value: float, decimal_places: int = 1) -> str:
+    """Format decimal as percentage."""
+    return f"{value * 100:.{decimal_places}f}%"
+
+
+def format_json(data: Any, indent: int = 2, sort_keys: bool = True) -> str:
+    """Format data as pretty-printed JSON."""
+    return json.dumps(data, indent=indent, sort_keys=sort_keys, default=str)
