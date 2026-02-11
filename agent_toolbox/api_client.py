@@ -2,9 +2,37 @@
 
 import requests
 import json
+import logging
 from typing import Dict, List, Optional, Union, Any
 from urllib.parse import urljoin
 import time
+
+
+logger = logging.getLogger(__name__)
+
+
+class APIError(Exception):
+    """Base exception for API-related errors."""
+    pass
+
+
+class APITimeoutError(APIError):
+    """Raised when API request times out."""
+    pass
+
+
+class APIConnectionError(APIError):
+    """Raised when connection to API fails."""
+    pass
+
+
+class APIHTTPError(APIError):
+    """Raised when API returns HTTP error status."""
+    
+    def __init__(self, message: str, status_code: int, response_text: str = ""):
+        super().__init__(message)
+        self.status_code = status_code
+        self.response_text = response_text
 
 
 class APIClient:
@@ -27,20 +55,51 @@ class APIClient:
             self.session.headers.update(headers)
             
     def _make_request(self, method: str, endpoint: str, **kwargs) -> requests.Response:
-        """Make an HTTP request with retry logic."""
+        """Make an HTTP request with retry logic and proper error handling."""
         url = urljoin(self.base_url + '/', endpoint.lstrip('/'))
+        last_exception = None
         
         for attempt in range(self.retry_count + 1):
             try:
+                logger.debug(f"Making {method} request to {url} (attempt {attempt + 1})")
                 response = self.session.request(
                     method, url, timeout=self.timeout, **kwargs
                 )
                 response.raise_for_status()
+                logger.debug(f"Request successful: {response.status_code}")
                 return response
+                
+            except requests.exceptions.Timeout as e:
+                last_exception = APITimeoutError(f"Request to {url} timed out after {self.timeout}s")
+                logger.warning(f"Request timeout on attempt {attempt + 1}: {str(e)}")
+                
+            except requests.exceptions.ConnectionError as e:
+                last_exception = APIConnectionError(f"Connection failed to {url}: {str(e)}")
+                logger.warning(f"Connection error on attempt {attempt + 1}: {str(e)}")
+                
+            except requests.exceptions.HTTPError as e:
+                response_text = e.response.text[:500] if e.response else ""
+                last_exception = APIHTTPError(
+                    f"HTTP {e.response.status_code} error for {url}: {str(e)}",
+                    e.response.status_code,
+                    response_text
+                )
+                logger.warning(f"HTTP error on attempt {attempt + 1}: {e.response.status_code}")
+                # Don't retry on 4xx errors (client errors)
+                if 400 <= e.response.status_code < 500:
+                    break
+                    
             except requests.RequestException as e:
-                if attempt == self.retry_count:
-                    raise Exception(f"API request failed after {self.retry_count + 1} attempts: {str(e)}")
-                time.sleep(self.retry_delay * (2 ** attempt))  # Exponential backoff
+                last_exception = APIError(f"Request failed to {url}: {str(e)}")
+                logger.warning(f"Request error on attempt {attempt + 1}: {str(e)}")
+            
+            if attempt < self.retry_count:
+                sleep_time = self.retry_delay * (2 ** attempt)
+                logger.debug(f"Retrying in {sleep_time}s...")
+                time.sleep(sleep_time)
+        
+        logger.error(f"All {self.retry_count + 1} attempts failed for {method} {url}")
+        raise last_exception
                 
     def get(self, endpoint: str, params: Optional[Dict] = None) -> Dict[str, Any]:
         """Make a GET request."""
