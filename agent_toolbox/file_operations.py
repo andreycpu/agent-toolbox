@@ -27,3 +27,21 @@ class FileManager:
         if path.is_absolute():
             return path
         return self.base_path / path
+    
+    def read_text(self, path: Union[str, Path], encoding: str = "utf-8") -> str:
+        """Read text content from a file."""
+        full_path = self._resolve_path(path)
+        return full_path.read_text(encoding=encoding)
+        
+    def write_text(self, path: Union[str, Path], content: str, encoding: str = "utf-8") -> None:
+        """Write text content to a file."""
+        full_path = self._resolve_path(path)
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        full_path.write_text(content, encoding=encoding)
+        
+    def append_text(self, path: Union[str, Path], content: str, encoding: str = "utf-8") -> None:
+        """Append text content to a file."""
+        full_path = self._resolve_path(path)
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(full_path, 'a', encoding=encoding) as f:
+            f.write(content)
