@@ -34,6 +34,7 @@ setup(
         "aiohttp>=3.7.4",
         "PyYAML>=5.4.1",
         "python-dotenv>=0.19.0",
+        "psutil>=5.8.0",
     ],
     extras_require={
         "dev": ["pytest>=6.2.4", "black>=21.5b2", "flake8>=3.9.2"],
