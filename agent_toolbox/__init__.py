@@ -10,10 +10,16 @@ from .api_client import APIClient
 from .data_processing import DataProcessor
 from .shell_execution import ShellExecutor
 
+# Import submodules for convenience
+from . import integrations
+from . import utils
+
 __all__ = [
     "FileManager",
     "WebScraper", 
     "APIClient",
     "DataProcessor",
     "ShellExecutor",
+    "integrations",
+    "utils",
 ]
