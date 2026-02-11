@@ -82,3 +82,47 @@ def validate_regex(pattern: str) -> bool:
         return True
     except re.error:
         return False
+
+
+def validate_range(value: Union[int, float], 
+                  min_val: Optional[Union[int, float]] = None,
+                  max_val: Optional[Union[int, float]] = None) -> bool:
+    """Validate numeric value is within range."""
+    try:
+        num_value = float(value)
+        if min_val is not None and num_value < min_val:
+            return False
+        if max_val is not None and num_value > max_val:
+            return False
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
+def validate_length(value: Union[str, List, Dict], 
+                   min_length: Optional[int] = None,
+                   max_length: Optional[int] = None) -> bool:
+    """Validate length of string, list, or dictionary."""
+    try:
+        length = len(value)
+        if min_length is not None and length < min_length:
+            return False
+        if max_length is not None and length > max_length:
+            return False
+        return True
+    except TypeError:
+        return False
+
+
+def validate_type(value: Any, expected_type: type) -> bool:
+    """Validate value is of expected type."""
+    return isinstance(value, expected_type)
+
+
+def validate_not_empty(value: Any) -> bool:
+    """Validate value is not None or empty."""
+    if value is None:
+        return False
+    if hasattr(value, '__len__'):
+        return len(value) > 0
+    return True
