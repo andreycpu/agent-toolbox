@@ -45,3 +45,16 @@ class FileManager:
         full_path.parent.mkdir(parents=True, exist_ok=True)
         with open(full_path, 'a', encoding=encoding) as f:
             f.write(content)
+            
+    def read_json(self, path: Union[str, Path]) -> Dict[str, Any]:
+        """Read JSON content from a file."""
+        full_path = self._resolve_path(path)
+        with open(full_path, 'r') as f:
+            return json.load(f)
+            
+    def write_json(self, path: Union[str, Path], data: Dict[str, Any], indent: int = 2) -> None:
+        """Write data to a JSON file."""
+        full_path = self._resolve_path(path)
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(full_path, 'w') as f:
+            json.dump(data, f, indent=indent)
