@@ -115,3 +115,38 @@ class FileManager:
                 shutil.rmtree(full_path)
             else:
                 full_path.rmdir()
+                
+    def list_files(self, path: Union[str, Path] = ".", pattern: str = "*") -> List[Path]:
+        """List files in a directory with optional pattern matching."""
+        full_path = self._resolve_path(path)
+        return list(full_path.glob(pattern))
+        
+    def find_files(self, pattern: str, path: Union[str, Path] = ".", recursive: bool = True) -> List[Path]:
+        """Find files matching a pattern."""
+        full_path = self._resolve_path(path)
+        if recursive:
+            return list(full_path.rglob(pattern))
+        else:
+            return list(full_path.glob(pattern))
+            
+    def get_file_size(self, path: Union[str, Path]) -> int:
+        """Get file size in bytes."""
+        full_path = self._resolve_path(path)
+        return full_path.stat().st_size
+        
+    def get_file_stats(self, path: Union[str, Path]) -> Dict[str, Any]:
+        """Get comprehensive file statistics."""
+        full_path = self._resolve_path(path)
+        stat = full_path.stat()
+        return {
+            'size': stat.st_size,
+            'modified': stat.st_mtime,
+            'accessed': stat.st_atime,
+            'created': stat.st_ctime,
+            'mode': stat.st_mode,
+            'is_file': full_path.is_file(),
+            'is_dir': full_path.is_dir(),
+            'name': full_path.name,
+            'suffix': full_path.suffix,
+            'parent': str(full_path.parent)
+        }
