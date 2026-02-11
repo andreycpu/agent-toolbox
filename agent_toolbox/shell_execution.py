@@ -92,3 +92,65 @@ class ShellExecutor:
                 }
         except Exception as e:
             raise Exception(f"Failed to execute command: {str(e)}")
+            
+    def execute_batch(self, commands: List[str], 
+                      stop_on_error: bool = True) -> List[Dict[str, Union[str, int]]]:
+        """Execute multiple commands in sequence."""
+        results = []
+        
+        for command in commands:
+            try:
+                result = self.execute(command, check_return_code=stop_on_error)
+                results.append(result)
+                
+                if stop_on_error and not result['success']:
+                    break
+                    
+            except Exception as e:
+                result = {
+                    'stdout': '',
+                    'stderr': str(e),
+                    'return_code': -1,
+                    'command': command,
+                    'success': False
+                }
+                results.append(result)
+                
+                if stop_on_error:
+                    break
+                    
+        return results
+        
+    def execute_script(self, script_content: str, 
+                       script_type: str = 'bash',
+                       cleanup: bool = True) -> Dict[str, Union[str, int]]:
+        """Execute a script from string content."""
+        
+        # Create temporary script file
+        script_extensions = {'bash': '.sh', 'python': '.py', 'powershell': '.ps1'}
+        extension = script_extensions.get(script_type, '.sh')
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix=extension, delete=False) as f:
+            f.write(script_content)
+            script_path = f.name
+            
+        try:
+            # Make executable if shell script
+            if script_type in ['bash', 'sh']:
+                os.chmod(script_path, 0o755)
+                command = f"bash {script_path}"
+            elif script_type == 'python':
+                command = f"python {script_path}"
+            elif script_type == 'powershell':
+                command = f"powershell -File {script_path}"
+            else:
+                command = script_path
+                
+            result = self.execute(command)
+            
+        finally:
+            # Cleanup temporary file
+            if cleanup and os.path.exists(script_path):
+                os.unlink(script_path)
+                
+        return result
