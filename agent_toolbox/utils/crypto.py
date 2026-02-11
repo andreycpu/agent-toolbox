@@ -42,3 +42,18 @@ def hash_file(file_path: str, algorithm: str = "sha256", chunk_size: int = 8192)
             hasher.update(chunk)
             
     return hasher.hexdigest()
+
+
+def generate_hmac(message: str, key: str, algorithm: str = "sha256") -> str:
+    """Generate HMAC for message using key."""
+    return hmac.new(
+        key.encode('utf-8'),
+        message.encode('utf-8'),
+        getattr(hashlib, algorithm)
+    ).hexdigest()
+
+
+def verify_hmac(message: str, key: str, signature: str, algorithm: str = "sha256") -> bool:
+    """Verify HMAC signature."""
+    expected = generate_hmac(message, key, algorithm)
+    return hmac.compare_digest(expected, signature)
