@@ -118,3 +118,55 @@ class DataProcessor:
             result[column] = (result[column] - mean_val) / std_val
             
         return result
+        
+    def get_basic_stats(self, df: pd.DataFrame, column: str) -> Dict[str, float]:
+        """Get basic statistics for a numeric column."""
+        series = df[column]
+        return {
+            'count': len(series),
+            'mean': series.mean(),
+            'median': series.median(),
+            'mode': series.mode().iloc[0] if len(series.mode()) > 0 else None,
+            'std': series.std(),
+            'var': series.var(),
+            'min': series.min(),
+            'max': series.max(),
+            'q25': series.quantile(0.25),
+            'q75': series.quantile(0.75),
+            'skew': series.skew(),
+            'kurt': series.kurtosis()
+        }
+        
+    def detect_outliers(self, df: pd.DataFrame, column: str, method: str = 'iqr') -> List[int]:
+        """Detect outliers in a numeric column."""
+        series = df[column]
+        
+        if method == 'iqr':
+            q1 = series.quantile(0.25)
+            q3 = series.quantile(0.75)
+            iqr = q3 - q1
+            lower_bound = q1 - 1.5 * iqr
+            upper_bound = q3 + 1.5 * iqr
+            outliers = df[(series < lower_bound) | (series > upper_bound)].index.tolist()
+        elif method == 'zscore':
+            z_scores = np.abs((series - series.mean()) / series.std())
+            outliers = df[z_scores > 3].index.tolist()
+        else:
+            outliers = []
+            
+        return outliers
+        
+    def missing_data_report(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """Generate missing data analysis report."""
+        missing_count = df.isnull().sum()
+        missing_percent = (missing_count / len(df)) * 100
+        
+        report = {
+            'total_rows': len(df),
+            'columns_with_missing': missing_count[missing_count > 0].to_dict(),
+            'missing_percentages': missing_percent[missing_percent > 0].to_dict(),
+            'complete_rows': len(df.dropna()),
+            'rows_with_missing': len(df) - len(df.dropna())
+        }
+        
+        return report
